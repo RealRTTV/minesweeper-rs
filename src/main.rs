@@ -8,17 +8,18 @@ extern crate env_logger;
 extern crate log;
 extern crate wgpu;
 extern crate winapi;
-extern crate mex_sys;
-extern crate libc;
+extern crate wchar;
 extern crate bytemuck;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use rand::{Rng, thread_rng};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{DeviceId, ElementState, MouseButton};
-use crate::drawable_helper::draw_texture;
+use crate::drawable_helper::{draw_texture, draw_texture_stretched};
 use crate::window::{run, Vertex};
 
+// todo, make efficient to not draw 480 vertices, idk how, my code seems inefficient :/
+// todo, make Vec<Vec<u8>> into a Vec<u8> and an inline function to get with y and x
 fn main() {
     pollster::block_on(run());
 }
@@ -69,7 +70,7 @@ fn flag(x: usize, y: usize, board: &mut Vec<Vec<u8>>, mines: &mut i16) {
 #[inline]
 fn click_all_adj(board: &mut Vec<Vec<u8>>, x: usize, y: usize, data: &mut Data, func: fn(usize, usize, &mut Vec<Vec<u8>>, &mut Data)) {
     let up = y != 0;
-    let down = board.len() -1 != y;
+    let down = board.len() - 1 != y;
     let left = x != 0;
     let right = board[y].len() - 1 != x;
     if up { // up
@@ -215,26 +216,25 @@ pub fn render(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &Physica
     let height: u32 = board.len() as u32;
     let reset_x: u32 = (width * 16 - 2) / 2;
     draw_texture(vertices, indices, size, 0, 0, 69, 25, 12, 55); // top left
-    for x in 0..width {
-        draw_texture(vertices, indices, size, 12 + x * 16, 0, 81, 25, 16, 55); // top
-        draw_texture(vertices, indices, size, 12 + x * 16, 55 + height * 16, 81, 96, 16, 8); // bottom
-    }
-    for y in 0..height {
-        draw_texture(vertices, indices, size, 0, 55 + y * 16, 69, 80, 12, 16); // left
-        draw_texture(vertices, indices, size, 12 + width * 16, 55 + y * 16, 97, 80, 8, 16); // right
+    draw_texture_stretched(vertices, indices, size, 12, 0, 81, 25, 16, 55, width, 1); // top
+    draw_texture_stretched(vertices, indices, size, 12, 55 + height * 16, 81, 96, 16, 8, width, 1); // bottom
+    draw_texture_stretched(vertices, indices, size, 0, 55, 69, 80, 12, 16, 1, height); // left
+    draw_texture_stretched(vertices, indices, size, 12 + width * 16, 55, 97, 80, 8, 16, 1, height); // right
 
-        for x in 0..width {
-            let (u, v) = get_uv(&board[y as usize][x as usize], x as usize, y as usize, data);
-            // todo, make efficient to not draw 480 vertices
-            draw_texture(vertices, indices, size, 12 + x * 16, 55 + y * 16, u, v, 16, 16); // tile
-        }
-    }
     draw_texture(vertices, indices, size, 12 + width * 16, 0, 97, 25, 8, 55); // top right
     draw_texture(vertices, indices, size, 0, 55 + height * 16, 69, 96, 12, 8); // bottom left
     draw_texture(vertices, indices, size, 12 + width * 16, 55 + height * 16, 97, 96, 8, 8); // bottom right
 
     draw_texture(vertices, indices, size, 16, 16, 64, 0, 41, 25); // mines (left) border
     draw_texture(vertices, indices, size, width * 16 - 35, 16, 64, 0, 41, 25); // timer (right) border
+
+
+    for y in 0..height {
+        for x in 0..width {
+            let (u, v) = get_uv(&board[y as usize][x as usize], x as usize, y as usize, data);
+            draw_texture(vertices, indices, size, 12 + x * 16, 55 + y * 16, u, v, 16, 16); // tile
+        }
+    }
 
     if data.mouse_held && data.mouse_x as u32 >= reset_x && reset_x + 26 > data.mouse_x as u32 && data.mouse_y as u32 >= 15 && 41 > data.mouse_y as u32 {
         draw_texture(vertices, indices, size, reset_x, 15, 105, 78, 26, 26); // pressed
@@ -248,11 +248,11 @@ pub fn render(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &Physica
 
     // mines left
     let mines_bytes = &mut format!("{:>3}", data.mines).into_bytes();
-    while mines_bytes.len() > 3 { // todo, how faster, this is slow af
-        mines_bytes.reverse();
+    mines_bytes.reverse();
+    while mines_bytes.len() > 3 {
         mines_bytes.pop();
-        mines_bytes.reverse();
     }
+    mines_bytes.reverse();
     let (u1, v1) = get_num_uv(mines_bytes[0]);
     let (u2, v2) = get_num_uv(mines_bytes[1]);
     let (u3, v3) = get_num_uv(mines_bytes[2]);
@@ -263,17 +263,24 @@ pub fn render(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &Physica
     // seconds right
     let seconds = if data.placed_mines && !data.dead {SystemTime::now().duration_since(UNIX_EPOCH).expect("time went backwards lmao").as_secs() - data.start_time} else {0u64};
     let mines_bytes = &mut format!("{:>3}", seconds).into_bytes();
+    mines_bytes.reverse();
     while mines_bytes.len() > 3 { // todo, how faster, this is slow af
-        mines_bytes.reverse();
         mines_bytes.pop();
-        mines_bytes.reverse();
     }
+    mines_bytes.reverse();
     let (u1, v1) = get_num_uv(mines_bytes[0]);
     let (u2, v2) = get_num_uv(mines_bytes[1]);
     let (u3, v3) = get_num_uv(mines_bytes[2]);
     draw_texture(vertices, indices, size, width * 16 - 34, 17, u1, v1, 13, 23);
     draw_texture(vertices, indices, size, width * 16 - 21, 17, u2, v2, 13, 23);
     draw_texture(vertices, indices, size, width * 16 - 8, 17, u3, v3, 13, 23);
+}
+
+#[inline]
+pub fn render_tiles(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &PhysicalSize<u32>, board: &mut Vec<Vec<u8>>, data: &Data) {
+    let width: u32 = board[0].len() as u32;
+    let height: u32 = board.len() as u32;
+
 }
 
 #[inline]

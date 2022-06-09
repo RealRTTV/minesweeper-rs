@@ -632,22 +632,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "mex-sys"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f45cac876aabdd1256292ac1e72f77a48fc84a8ef539759599339033a1b0908c"
-
-[[package]]
 name = "minesweeper-rs"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
  "env_logger",
- "libc",
  "log",
- "mex-sys",
  "pollster",
  "rand",
+ "wchar",
  "wgpu",
  "winapi",
  "winit",
@@ -1270,6 +1263,26 @@ dependencies = [
  "dlib",
  "lazy_static",
  "pkg-config",
+]
+
+[[package]]
+name = "wchar"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1ca6ea80317e76471c3aa6d47efb151ef04538960ab810845a1c854f5cd7d8c"
+dependencies = [
+ "wchar-impl",
+]
+
+[[package]]
+name = "wchar-impl"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "075c93156fed21f9dab57af5e81604d0fdb67432c919a8c1f78bb979f06a3d25"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

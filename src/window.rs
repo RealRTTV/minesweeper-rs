@@ -1,44 +1,59 @@
-use std::alloc::{alloc, dealloc, Layout};
-use std::ffi::CString;
 use std::num::NonZeroU32;
-use std::os::raw::c_char;
 use std::ptr::null;
-use mex_sys::{_mbstowcs_s_l, size_t, wchar_t};
 
 use wgpu::{CommandEncoder, ImageDataLayout, SurfaceTexture, TextureAspect, TextureView};
+use winit::platform::windows::WindowBuilderExtWindows;
 use wgpu::util::DeviceExt;
 use winapi::shared::minwindef::UINT;
 use winapi::um::winnt::LPCWSTR;
-use winapi::um::winuser::*;
+use winapi::um::winuser::{AppendMenuW, CreateMenu, MF_POPUP, MF_SEPARATOR, MF_STRING};
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
 use winit::dpi::PhysicalSize;
-use winit::platform::windows::WindowBuilderExtWindows;
 use winit::window::Icon;
 use winit::window::Window;
+use wchar::wchz;
 
 use crate::files::*;
-use crate::{render, mouse_click, Data, mouse_moved};
+use crate::{render, mouse_click, Data, mouse_moved, render_tiles};
 
 pub async fn run() {
+    let width = 99;
+    let height = 99;
+    let mine_count: u16 = 10;
     env_logger::init();
     let event_loop = EventLoop::new();
     let flagged: Vec<u8> = icon().to_vec();
-    // let menu = ;
 
-    let mut board: Vec<Vec<u8>> = vec!(vec!(0u8; 30); 16);
-    let mine_count: u16 = 99;
+    let mut board: Vec<Vec<u8>> = vec!(vec!(0u8; width); height);
     let mut data: Data = Data::new((board.len() * board[0].len()) as u16 - mine_count, mine_count);
-    // let menubar = unsafe { CreateMenu() };
-    // let menu = unsafe { CreateMenu() };
-    // let file = "File";
-    // unsafe {
-    //     AppendMenuW(menu, MF_STRING, 1, lpcwstr("New"));
-    //     AppendMenuW(menu, MF_STRING, 2, lpcwstr("Open"));
-    //     AppendMenuW(menu, MF_SEPARATOR, 0, null());
-    //     AppendMenuW(menu, MF_STRING, 3, lpcwstr("Quit"));
-    //     AppendMenuW(menubar, MF_POPUP, (menu as UINT).try_into().unwrap(), "File".as_ptr() as LPCWSTR);
-    // };
-    let window = WindowBuilder::new().with_title("Minesweeper").with_window_icon(Some(Icon::from_rgba(flagged, 16, 16).unwrap())).with_resizable(false).with_inner_size(PhysicalSize::new((20 + 16 * board[0].len()) as i32, (63 + 16 * board.len())  as i32))/*.with_menu(menubar)*/.build(&event_loop).unwrap();
+    let menubar = unsafe { CreateMenu() };
+    let game = unsafe { CreateMenu() };
+    let help = unsafe { CreateMenu() };
+    unsafe {
+        AppendMenuW(game, MF_STRING, 1, wchz!("New") as LPCWSTR); // f2 keybind thing - n
+        AppendMenuW(game, MF_SEPARATOR, 0, null());
+        AppendMenuW(game, MF_STRING, 2, wchz!("Beginner") as LPCWSTR); // checkbox - b
+        AppendMenuW(game, MF_STRING, 3, wchz!("Intermediate") as LPCWSTR); // checkbox - i
+        AppendMenuW(game, MF_STRING, 4, wchz!("Expert") as LPCWSTR); // checkbox - e
+        AppendMenuW(game, MF_STRING, 5, wchz!("Custom...") as LPCWSTR); // checkbox - c
+        AppendMenuW(game, MF_SEPARATOR, 0, null());
+        AppendMenuW(game, MF_STRING, 6, wchz!("Marks (?)") as LPCWSTR); // checkbox - m
+        AppendMenuW(game, MF_STRING, 7, wchz!("Color") as LPCWSTR); // checkbox - l
+        AppendMenuW(game, MF_STRING, 8, wchz!("Sound") as LPCWSTR); // checkbox - s
+        AppendMenuW(game, MF_SEPARATOR, 0, null());
+        AppendMenuW(game, MF_STRING, 8, wchz!("Best Times...") as LPCWSTR); // clickable - t
+        AppendMenuW(game, MF_SEPARATOR, 0, null());
+        AppendMenuW(game, MF_STRING, 9, wchz!("Exit") as LPCWSTR); // x
+        AppendMenuW(menubar, MF_POPUP, (game as UINT).try_into().unwrap(), wchz!("Game") as LPCWSTR); // g
+
+        AppendMenuW(help, MF_STRING, 10, wchz!("Contents") as LPCWSTR); // c
+        AppendMenuW(help, MF_STRING, 11, wchz!("Search for Help on") as LPCWSTR); // h
+        AppendMenuW(help, MF_STRING, 12, wchz!("Using Help") as LPCWSTR); // s
+        AppendMenuW(help, MF_SEPARATOR, 0, null());
+        AppendMenuW(help, MF_STRING, 13, wchz!("About Minesweeper...") as LPCWSTR); // a
+        AppendMenuW(menubar, MF_POPUP, (help as UINT).try_into().unwrap(), wchz!("Help") as LPCWSTR);
+    };
+    let window = WindowBuilder::new().with_title("Minesweeper").with_window_icon(Some(Icon::from_rgba(flagged, 16, 16).unwrap())).with_resizable(false).with_inner_size(PhysicalSize::new((20 + 16 * board[0].len()) as i32, (63 + 16 * board.len()) as i32)).with_menu(menubar).build(&event_loop).unwrap();
     let mut state = State::new(&window).await;
 
     event_loop.run(move |event, _, control_flow| {
@@ -76,25 +91,6 @@ pub async fn run() {
         }
     });
 }
-
-// fn lpcwstr(str: &str) -> LPCWSTR {
-//     unsafe {
-//         let c_string_ptr = CString::new(str).unwrap().as_ptr();
-//         let len = str.len();
-//         let len_layout = Layout::new::<usize>();
-//         let len_ptr = alloc(len_layout);
-//         let bytes = len + 1;
-//
-//         let mem_layout = Layout::new::<u16>();
-//         let mem = alloc(mem_layout);
-//
-//         let _ = _mbstowcs_s_l(len_ptr as *mut size_t, mem as *mut wchar_t, bytes >> 1, c_string_ptr, bytes, ());
-//         let lpcwstr = mem.read() as LPCWSTR;
-//         dealloc(mem, mem_layout);
-//         dealloc(len_ptr, len_layout);
-//         lpcwstr
-//     }
-// }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -151,9 +147,10 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
-    rendered: bool
+    other_vertex_buffer: Option<wgpu::Buffer>,
+    other_index_buffer: Option<wgpu::Buffer>,
+    other_diffuse_bind_group: Option<wgpu::BindGroup>
 }
 
 impl State {
@@ -186,7 +183,7 @@ impl State {
             format: surface.get_preferred_format(&adapter).unwrap(),
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::Immediate, // fifo = vsync, immediate = no vsync
         };
         surface.configure(&device, &config);
         let width = 256;
@@ -366,7 +363,6 @@ impl State {
                 usage: wgpu::BufferUsages::INDEX,
             }
         );
-        let num_indices = INDICES.len() as u32;
 
         Self {
             surface,
@@ -377,9 +373,10 @@ impl State {
             render_pipeline,
             vertex_buffer,
             index_buffer,
-            num_indices,
             diffuse_bind_group,
-            rendered: false
+            other_vertex_buffer: None,
+            other_index_buffer: None,
+            other_diffuse_bind_group: None
         }
     }
 
@@ -448,34 +445,55 @@ impl State {
             }],
             depth_stencil_attachment: None,
         });
-        // if !self.rendered {
-        //     self.rendered = true;
-            let mut vertices: Vec<Vertex> = Vec::new();
-            let mut indices: Vec<u16> = Vec::new();
-            render(&mut vertices, &mut indices, &self.size, &mut board, data);
-            self.vertex_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Vertex Buffer"),
-                    contents: bytemuck::cast_slice(vertices.as_slice()),
-                    usage: wgpu::BufferUsages::VERTEX,
-                }
-            );
-            self.index_buffer = self.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(indices.as_slice()),
-                    usage: wgpu::BufferUsages::INDEX,
-                }
-            );
-            self.num_indices = indices.len() as u32;
-        // }
 
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+
+        let mut vertices: Vec<Vertex> = Vec::new();
+        let mut indices: Vec<u16> = Vec::new();
+        render(&mut vertices, &mut indices, &self.size, &mut board, data);
+        self.vertex_buffer = self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(vertices.as_slice()),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+        self.index_buffer = self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(indices.as_slice()),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
+
+        let mut vertices: Vec<Vertex> = Vec::new();
+        let mut indices: Vec<u16> = Vec::new();
+        render_tiles(&mut vertices, &mut indices, &self.size, &mut board, data);
+        self.other_vertex_buffer = Some(self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(vertices.as_slice()),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        ));
+        self.other_index_buffer = Some(self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(indices.as_slice()),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        ));
+        render_pass.set_vertex_buffer(0, self.other_vertex_buffer.as_ref().unwrap().slice(..));
+        render_pass.set_index_buffer(self.other_index_buffer.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint16);
+        // render_pass.set_bind_group(0, &self.other_diffuse_bind_group.as_ref().unwrap(), &[]);
+
+        render_pass.draw_indexed(0..indices.len() as u32, 0, 0..700);
+
         drop(render_pass);
 
         self.queue.submit(std::iter::once(encoder.finish()));

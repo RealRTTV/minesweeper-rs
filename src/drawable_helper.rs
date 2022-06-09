@@ -3,13 +3,13 @@ use crate::window::Vertex;
 
 #[inline]
 pub fn draw_texture(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &PhysicalSize<u32>, x: u32, y: u32, u: u32, v: u32, width: u32, height: u32) {
-    draw_texture_with_z(vertices, indices, size, x, y, 0.0, u, v, width, height);
+    draw_texture_stretched_z(vertices, indices, size, x, y, 0.0, u, v, width, height, 1, 1);
 }
 
-pub fn draw_texture_with_z(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &PhysicalSize<u32>, x: u32, y: u32, z: f32, u: u32, v: u32, width: u32, height: u32) {
+pub fn draw_texture_stretched_z(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &PhysicalSize<u32>, x: u32, y: u32, z: f32, u: u32, v: u32, width: u32, height: u32, x_scale: u32, y_scale: u32) {
     let x0 = ((x as f32 / size.width as f32) as f32 * 2.0) - 1.0; // todo, fix math
-    let x1 = (((x + width) as f32 / size.width as f32) as f32 * 2.0) - 1.0;
-    let y0 = -((((y + height) as f32 / size.height as f32) as f32 * 2.0) - 1.0);
+    let x1 = (((x + (width * x_scale)) as f32 / size.width as f32) as f32 * 2.0) - 1.0;
+    let y0 = -((((y + (height * y_scale)) as f32 / size.height as f32) as f32 * 2.0) - 1.0);
     let y1 = -(((y as f32 / size.height as f32) as f32 * 2.0) - 1.0);
     let u0 = u as f32 / 256.0;
     let u1 = (u + width) as f32 / 256.0;
@@ -27,4 +27,9 @@ pub fn draw_texture_with_z(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, s
     indices.push((len + 0) as u16);
     indices.push((len + 2) as u16);
     indices.push((len + 3) as u16);
+}
+
+#[inline]
+pub fn draw_texture_stretched(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &PhysicalSize<u32>, x: u32, y: u32, u: u32, v: u32, width: u32, height: u32, x_scale: u32, y_scale: u32) {
+    draw_texture_stretched_z(vertices, indices, size, x, y, 0.0, u, v, width, height, x_scale, y_scale);
 }
