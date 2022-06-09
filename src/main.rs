@@ -277,13 +277,6 @@ pub fn render(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &Physica
 }
 
 #[inline]
-pub fn render_tiles(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>, size: &PhysicalSize<u32>, board: &mut Vec<Vec<u8>>, data: &Data) {
-    let width: u32 = board[0].len() as u32;
-    let height: u32 = board.len() as u32;
-
-}
-
-#[inline]
 fn get_num_uv(char: u8) -> (u32, u32) {
     match char {
         45 => (0, 110),

@@ -14,12 +14,12 @@ use winit::window::Window;
 use wchar::wchz;
 
 use crate::files::*;
-use crate::{render, mouse_click, Data, mouse_moved, render_tiles};
+use crate::{render, mouse_click, Data, mouse_moved};
 
 pub async fn run() {
     let width = 99;
     let height = 99;
-    let mine_count: u16 = 10;
+    let mine_count: u16 = 99;
     env_logger::init();
     let event_loop = EventLoop::new();
     let flagged: Vec<u8> = icon().to_vec();
@@ -75,16 +75,19 @@ pub async fn run() {
                 window_id,
             }
 
-            if window_id == window.id() => if !state.input(&mut data, event, &mut board) {
-                match event {
-                    WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size);
+            if window_id == window.id() => {
+                state.redraw = state.input(&mut data, event, &mut board);
+                if !(state.redraw) {
+                    match event {
+                        WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size);
+                        }
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            state.resize(**new_inner_size);
+                        }
+                        _ => {}
                     }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(**new_inner_size);
-                    }
-                    _ => {}
                 }
             },
             _ => {}
@@ -148,9 +151,7 @@ struct State {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     diffuse_bind_group: wgpu::BindGroup,
-    other_vertex_buffer: Option<wgpu::Buffer>,
-    other_index_buffer: Option<wgpu::Buffer>,
-    other_diffuse_bind_group: Option<wgpu::BindGroup>
+    redraw: bool
 }
 
 impl State {
@@ -374,9 +375,7 @@ impl State {
             vertex_buffer,
             index_buffer,
             diffuse_bind_group,
-            other_vertex_buffer: None,
-            other_index_buffer: None,
-            other_diffuse_bind_group: None
+            redraw: true
         }
     }
 
@@ -423,6 +422,13 @@ impl State {
     }
 
     fn render(&mut self, mut board: &mut Vec<Vec<u8>>, data: &Data) -> Result<(), wgpu::SurfaceError> {
+        if !self.redraw {
+            return Ok(());
+        }
+
+        println!("Redrawing!");
+        self.redraw = false;
+
         let output: SurfaceTexture = self.surface.get_current_texture()?;
         let view: TextureView = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder: CommandEncoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -470,29 +476,6 @@ impl State {
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
         render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
-
-        let mut vertices: Vec<Vertex> = Vec::new();
-        let mut indices: Vec<u16> = Vec::new();
-        render_tiles(&mut vertices, &mut indices, &self.size, &mut board, data);
-        self.other_vertex_buffer = Some(self.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(vertices.as_slice()),
-                usage: wgpu::BufferUsages::VERTEX,
-            }
-        ));
-        self.other_index_buffer = Some(self.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(indices.as_slice()),
-                usage: wgpu::BufferUsages::INDEX,
-            }
-        ));
-        render_pass.set_vertex_buffer(0, self.other_vertex_buffer.as_ref().unwrap().slice(..));
-        render_pass.set_index_buffer(self.other_index_buffer.as_ref().unwrap().slice(..), wgpu::IndexFormat::Uint16);
-        // render_pass.set_bind_group(0, &self.other_diffuse_bind_group.as_ref().unwrap(), &[]);
-
-        render_pass.draw_indexed(0..indices.len() as u32, 0, 0..700);
 
         drop(render_pass);
 
