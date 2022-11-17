@@ -5,6 +5,7 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# -Zbuild-std=std,panic_abort -Zbuild-std-features=panic_immediate_abort
 [profile.release]
 opt-level = 3
 lto = true

@@ -7,7 +7,7 @@ use winit::dpi::PhysicalSize;
 use winit::window::Icon;
 use winit::window::Window;
 
-use crate::files::*;
+use crate::{files::*, key_input, on_resize};
 use crate::{render, mouse_click, Data, mouse_moved};
 use crate::vertex_buffer_builder::VertexBufferBuilder;
 
@@ -19,7 +19,7 @@ pub async fn run() {
     let flagged: Vec<u8> = icon().to_vec();
 
     let mut data: Data = Data::new(mine_count, width, height);
-    let window = WindowBuilder::new().with_title("Minesweeper").with_window_icon(Some(Icon::from_rgba(flagged, 16, 16).unwrap())).with_resizable(false).with_inner_size(PhysicalSize::new((20 + 16 * width) as u32, (63 + 16 * height) as u32)).build(&event_loop).unwrap();
+    let mut window = WindowBuilder::new().with_title("Minesweeper").with_window_icon(Some(Icon::from_rgba(flagged, 16, 16).unwrap())).with_resizable(true).with_min_inner_size(PhysicalSize::new(20 + 16 * 8, 63 + 16 * 3)).with_max_inner_size(PhysicalSize::new(20 + 16 * 60, 20 + 16 * 60)).with_inner_size(PhysicalSize::new((20 + 16 * width) as u32, (63 + 16 * height) as u32)).build(&event_loop).unwrap();
     let mut state = State::new(&window).await;
 
     event_loop.run(move |event, _, control_flow| {
@@ -49,15 +49,16 @@ pub async fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
-                    event => state.input(&mut data, event)
+                    _ => {}
                 }
+                state.input(&mut data, event, &mut window)
             },
             _ => {}
         }
     });
 }
 
-struct State {
+pub struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -278,7 +279,7 @@ impl State {
     }
 
     #[inline]
-    fn resize(&mut self, new_size: PhysicalSize<u32>) {
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -288,9 +289,9 @@ impl State {
     }
 
     #[inline]
-    fn input(&mut self, data: &mut Data, event: &WindowEvent) {
+    fn input(&mut self, data: &mut Data, event: &WindowEvent, window: &mut Window) {
         match event {
-            WindowEvent::Resized(_) => (),
+            WindowEvent::Resized(size) => on_resize(*size, data),
             WindowEvent::Moved(_) => (),
             WindowEvent::CloseRequested => (),
             WindowEvent::Destroyed => (),
@@ -299,13 +300,13 @@ impl State {
             WindowEvent::HoveredFileCancelled => (),
             WindowEvent::ReceivedCharacter(_) => (),
             WindowEvent::Focused(_) => (),
-            WindowEvent::KeyboardInput { .. } => (),
+            WindowEvent::KeyboardInput { input, .. } => key_input(*input, data, window, self),
             WindowEvent::ModifiersChanged(_) => (),
-            WindowEvent::CursorMoved { position, .. } => mouse_moved(position, data),
+            WindowEvent::CursorMoved { position, .. } => mouse_moved(position, data, window, self),
             WindowEvent::CursorEntered { .. } => (),
             WindowEvent::CursorLeft { .. } => (),
             WindowEvent::MouseWheel { .. } => (),
-            WindowEvent::MouseInput { state, button, .. } => mouse_click(state, button, data),
+            WindowEvent::MouseInput { state, button, .. } => mouse_click(state, button, data, window, self),
             WindowEvent::TouchpadPressure { .. } => (),
             WindowEvent::AxisMotion { .. } => (),
             WindowEvent::Touch(_) => (),
@@ -333,9 +334,9 @@ impl State {
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(wgpu::Color {
-                            r: 0.392,
-                            g: 0.584,
-                            b: 0.929,
+                            r: 0.0461488424,
+                            g: 0.0461488424,
+                            b: 0.0461488424,
                             a: 1.0
                         }),
                         store: true,
