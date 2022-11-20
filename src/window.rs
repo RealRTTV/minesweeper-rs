@@ -341,7 +341,6 @@ impl State {
     }
 
     fn render(&mut self, data: &mut Data) -> Result<(), SurfaceError> {
-        let start = std::time::Instant::now();
         let vertex_buffer;
         let index_buffer;
         {
@@ -409,7 +408,6 @@ impl State {
             output.present();
 
         }
-        println!("took {}ns", std::time::Instant::now().duration_since(start).as_nanos());
         Ok(())
     }
 }
