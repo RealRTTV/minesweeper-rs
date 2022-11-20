@@ -1,16 +1,18 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-mod files;
-mod vertex_buffer_builder;
-mod window;
+//#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![feature(inline_const)]
 
 extern crate rand;
 extern crate wgpu;
 extern crate winit;
 
+mod assets;
+mod vertex_buffer_builder;
+mod window;
+
 use crate::vertex_buffer_builder::VertexBufferBuilder;
 use crate::window::run;
 use rand::Rng;
+use window::Theme;
 use std::hint::unreachable_unchecked;
 use std::time::{SystemTime, UNIX_EPOCH};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
@@ -409,8 +411,27 @@ pub fn render(builder: &mut VertexBufferBuilder, data: &Data) {
         .enumerate()
         .rev()
         .for_each(|(index, uv)| {
-            builder.draw_texture((builder.window_width() - 54 + index as u32 * 13, 17), uv, (13, 23))
+            builder.draw_texture(
+                (builder.window_width() - 54 + index as u32 * 13, 17),
+                uv,
+                (13, 23),
+            )
         });
+
+    // sheen time!!
+    if let Some(finish_time) = data.finish_time.map(|x| (x + data.start_time) as u128 * 5) {
+        let elapsed = unsafe { std::time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_unchecked() }.as_millis() as f64 / 200.0;
+        let offset = elapsed - finish_time as f64;
+        let offset = if offset >= 6.0 { offset - 6.0 } else { 0.0 };  // estimated time since vsync, overshot because ofc
+        let offset = (offset * offset * offset) as u32;
+        for x in 0..data.width as u32 {
+            for y in 0..data.height as u32 {
+                if offset >= x + y + 1 {
+                    builder.draw_texture((12 + x * 16, 55 + y * 16), (131, 0), (16, 16));
+                }
+            }
+        }
+    }
 
     //    builder.draw_texture((0, 0), (0, 0), (256, 256));
 }
@@ -471,6 +492,7 @@ pub fn mouse_click(
                     && -14 > y
                 {
                     data.death_pos = None;
+                    data.finish_time = None;
                     data.placed_mines = false;
                     data.mines = data.starting_mines as i16;
                     data.tiles_left = ((data.width * data.height) as i16 - data.mines) as u16;
@@ -654,6 +676,10 @@ pub fn key_input(
                 data.death_pos = None;
                 data.finish_time = None;
                 data.clear_board(); // keep size
+            } else if x == VirtualKeyCode::L {
+                state.theme = Theme::Light;
+            } else if x == VirtualKeyCode::D {
+                state.theme = Theme::Dark;
             }
         }
     }
